@@ -1,12 +1,12 @@
 # 项目名称
 
-一个简短的项目描述，概述项目的目的和主要功能。
+免费vpn分享拉取，只用于技术探讨与学习
 
 ## 特性
 
-- 特性一
-- 特性二
-- 特性三
+- 有外网环境的条件下执行
+- 从YouTube中获取
+- 从博客主页中获取
 
 ## 安装
 
@@ -14,10 +14,10 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/yourusername/yourproject.git
+git clone git@github.com:github2sean/shunfengVpn.git
 
 # 进入项目目录
-cd yourproject
+cd shunfengVpn
 
 # 安装依赖
 pip install -r requirements.txt
