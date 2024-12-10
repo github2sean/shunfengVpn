@@ -10,15 +10,24 @@ import urllib.parse
 from jsonsearch import JsonSearch
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import os
+from urllib.parse import quote
 
-is_pull_latest_page = True
+from Models import Vless
+
+def_is_pull_latest_blog = True
+
 header = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     "referer": "https://www.youtube.com/@SFZY666"
 }
 
 pageIndex = 0
-pageSize = 10
+pageSize = 40
 now = datetime.datetime.now()
 current_str = now.strftime('%Y-%m-%dT%H:%M:%S') + '- 23:59'
 target_url = f'https://skill-note.blogspot.com/search?updated-max={current_str}&max-results={pageSize}'
@@ -32,16 +41,27 @@ logging.basicConfig(filemode='w',
                     encoding='utf-8'
                     )
 
+# 配置 ChromeOptions
+chrome_options = webdriver.ChromeOptions()
+chrome_options.headless = True
+chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+chrome_options.add_experimental_option('useAutomationExtension', False)
+
 
 def get_latest_blog_page_from_ytb(urls):
     result = []
-    browser = webdriver.Chrome()
+    browser = webdriver.Chrome(options=chrome_options, service=Service(ChromeDriverManager().install()))
     try:
         for url in urls:
             logging.info(f'开始从{url} 中查找blog链接...')
             youtube_video_list_url = url
             browser.get(youtube_video_list_url)
-            element = browser.find_element(By.TAG_NAME, 'ytd-text-inline-expander')
+            # 等待并检测是否存在 CAPTCHA 元素（例如，reCAPTCHA 框架）
+            wait = WebDriverWait(browser, 10)
+            captcha_element = wait.until(EC.presence_of_element_located((By.ID, 'captcha-form')))
+            if captcha_element: logging.warning("CAPTCHA 元素已检测到。")
+            element = wait.until(EC.presence_of_element_located((By.TAG_NAME, 'ytd-text-inline-expander')))
             more = browser.find_element(By.ID, 'expand')
             more.click()
             des_content = element.find_element(By.TAG_NAME, "yt-attributed-string").get_attribute('outerHTML')
@@ -49,7 +69,7 @@ def get_latest_blog_page_from_ytb(urls):
             if beautiful_soup:
                 link = beautiful_soup.find_all("a")[-1]
                 if link:
-                    hand_url = parse_url(link['href'])
+                    hand_url = parse_url(link['href'], 'q')
                     logging.info(f"找到博客链接: {hand_url}")
                     result.append(hand_url)
                     time.sleep(10)
@@ -86,13 +106,13 @@ def get_latest_videos_from_ytb():
     return result
 
 
-def parse_url(url):
+def parse_url(url, key):
     # 解析 URL
     parsed_url = urllib.parse.urlparse(url)
     # 提取查询参数
     query_params = urllib.parse.parse_qs(parsed_url.query)
     # 获取 'q' 参数的值
-    q_value = query_params.get('q', [None])[0]
+    q_value = query_params.get(key, [None])[0]
     return q_value
 
 
@@ -145,12 +165,12 @@ def download_from_blog(url):
         link_tags = ul.find_all("a")
         for index, item in enumerate(link_tags):
             link = item["href"]
-            output = url + item.text + "_"
+            title = re2.sub(r'[<>:"/\\|?*]', '_', item.text)
+            output = quote(url.strip(), safe='=&') + '_A_' + title + "_A_"
             # 替换非法字符
-            output = str.strip(re2.sub(r'[<>:"/\\|?*]', '_', output))
             if link != "" and link.startswith("http"):
-                if "点击自动下载" in item.text:
-                    file_name = output + str(time.time()) + ".txt"
+                if "点击自动下载" in title:
+                    file_name = output + parse_url(link, 'id') + ".txt"
                     logging.info(f"直链下载的地址：{link}")
                     with open(file_name, "wb") as file:
                         for chunk in re.get(link, stream=True).iter_content(chunk_size=8192):
@@ -160,43 +180,102 @@ def download_from_blog(url):
                     match = re2.search(r'/d/([^/]+)/view', link)
                     if match:
                         file_id = match.group(1)
-                        output += file_id
-                        logging.info(f"文件ID: {file_id}")
-                        download_url = f'https://drive.google.com/uc?id={file_id}'
-                        output += '.yaml' if "Clash-" in item.text else '.txt'
-                        # 下载文件
-                        logging.info(f"Downloading: {download_url} ....  {output}")
-                        try:
-                            gdown.download(download_url, output, quiet=False)
-                        except Exception as e:
-                            logging.error(f'当前url: {url} 文件名 {output} \n 报错内容：{e}')
-                        logging.info(f"{url} 中vpn文件下载成功！")
+                        if file_id:
+                            output += file_id
+                            logging.info(f"匹配到文件ID: {file_id}")
+                            download_url = f'https://drive.google.com/uc?id={file_id}'
+                            output += '.yaml' if "Clash-" in title else '.txt'
+                            # 下载文件
+                            try:
+                                logging.info(f"Downloading: {download_url} ....  {output}")
+                                gdown.download(download_url, output, quiet=False)
+                                logging.info(f"Downloaded: {download_url} ....  {output}")
+                            except Exception as e:
+                                logging.error(f'当前url: {url} 文件名 {output} \n 报错内容：{e}')
+                            logging.info(f"{url} 中vpn文件下载成功！")
+                        else:
+                            logging.error(f"未找到fileId link:{link}")
                     else:
                         logging.warning(f"{link} 中 未匹配到文件id")
 
 
-def from_blog():
-    # 第一种方法从博客主页中拉取所有文章链接
+def from_blog(is_pull_latest_blog):
+    # 第一种方法从博客主页中拉取所有文章链接，目前一共36篇blog，且是随机挂载在一篇博文中，暂时未找到规律，只能穷举再验证链接是否有效
     result = get_blog_pages(target_url)
-    if is_pull_latest_page:
+    if is_pull_latest_blog and len(result) > 0:
         download_from_blog(result[0])
-    else:
+    elif not is_pull_latest_blog and len(result) > 0:
         for url in result:
             download_from_blog(url)
+    else:
+        logging.warning("未找到blog列表")
     logging.info("脚本执行完毕！！！")
 
 
 def from_youtube():
     res_videos = get_latest_videos_from_ytb()
     urls = get_latest_blog_page_from_ytb(res_videos)
-    if is_pull_latest_page:
+    if is_pull_latest_blog and len(urls) > 0:
         download_from_blog(urls[0])
     else:
-        # 注意抓取多个会被Youtube限流
+        # 注意多次调用会有验证码需手动点
         for url in urls:
             download_from_blog(url)
 
 
+# @Todo
+def upload_to_alist():
+    url = 'http://127.0.0.1:5244/api/fs/form'
+    headers = {'Authorization': 'your_token_here', 'Content-Type': 'multipart/form-data',
+               'Content-Length': 'size_of_your_file'}
+    files = {'file': ('file.jpg', open('C:\\path\\to\\your\\file.jpg', 'rb'))}
+    response = re.put(url, headers=headers, files=files)
+    print(response.text)
+
+
+def file_to_database():
+    files = os.listdir(os.getcwd())
+    txts = [f for f in files if f.endswith('.txt') or f.endswith('.yaml')]
+    for txt in txts:
+        generate_data_from_file(txt)
+
+
+def generate_data_from_file(file_name):
+    with open(file_name, 'r', encoding='utf-8-sig') as f:
+        if "V2ray" in file_name and ".txt" in file_name:
+            lines = f.readlines()
+            for line in lines:
+                content = line.strip().replace("\n", '')
+                vless = Vless()
+                vless.create_by_vless(vpn_link=content, file_name=file_name, file_type=4, content=content)
+        elif "IOS" in file_name and ".txt" in file_name:
+            link = f'https://drive.google.com/uc?export=download&id={file_name.split("_A_")[-1].replace(".txt", "")}'
+            content = []
+            while True:
+                line = f.read(1024 * 8)
+                content.append(line)
+                if not line:
+                    break
+            vless = Vless()
+            vless.create_by_vless(vpn_link=link, file_name=file_name, file_type=3, content=''.join(content))
+            # print("IOS:  " + ''.join(content))
+        elif "Clash-" in file_name and ".yaml" in file_name:
+            print("filename:  " + file_name)
+            content = []
+            while True:
+                line = f.read(1024 * 8)
+                content.append(line)
+                if not line:
+                    break
+            vless = Vless()
+            vless.create_by_vless(
+                vpn_link=f'http://pan.funcc.site/vpn/des/{file_name.split("_A_")[-1].replace(".txt", "")}',
+                file_name=file_name,
+                file_type=1 if "Clash-meta" in file_name else 2, content=''.join(content))
+            # print("Clash-:  " + ''.join(content))
+
+
 if __name__ == "__main__":
     # from_youtube()
-    from_blog()
+    # from_blog(def_is_pull_latest_blog & False)
+    file_to_database()
