@@ -1,4 +1,4 @@
-from peewee import Model, UUIDField, CharField, DateTimeField, SmallIntegerField, TextField
+from peewee import Model, UUIDField, CharField, DateTimeField, SmallIntegerField, TextField, DoubleField
 import uuid
 from DB import db, open_close
 from datetime import datetime
@@ -11,14 +11,14 @@ class Vless(Model):
     title = CharField()
     file_id = CharField()
     create_time = DateTimeField(default=datetime.now)
-    vpn_link = CharField(unique=True)
+    vpn_link = CharField(unique=True, max_length=1024)
     content = TextField()
     type = SmallIntegerField()
     file_type = CharField(max_length=5)
     alist_url = CharField()
     is_ping = SmallIntegerField(default=0)
-    ping_time = DateTimeField
-    ping_result = SmallIntegerField()
+    ping_time = DateTimeField(default=None)
+    download_speed = DoubleField()
     ping_delay = CharField(default='-1ms')
 
     class Meta:

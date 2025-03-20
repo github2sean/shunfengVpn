@@ -63,16 +63,19 @@ def get_latest_blog_page_from_ytb(urls):
             if captcha_element: logging.warning("CAPTCHA 元素已检测到。")
             element = wait.until(EC.presence_of_element_located((By.TAG_NAME, 'ytd-text-inline-expander')))
             more = browser.find_element(By.ID, 'expand')
-            more.click()
-            des_content = element.find_element(By.TAG_NAME, "yt-attributed-string").get_attribute('outerHTML')
-            beautiful_soup = BeautifulSoup(des_content, 'html.parser')
-            if beautiful_soup:
-                link = beautiful_soup.find_all("a")[-1]
-                if link:
-                    hand_url = parse_url(link['href'], 'q')
-                    logging.info(f"找到博客链接: {hand_url}")
-                    result.append(hand_url)
-                    time.sleep(10)
+            if more:
+                more.click()
+                des_content = element.find_element(By.TAG_NAME, "yt-attributed-string").get_attribute('outerHTML')
+                beautiful_soup = BeautifulSoup(des_content, 'html.parser')
+                if beautiful_soup:
+                    link = beautiful_soup.find_all("a")[-1]
+                    if link:
+                        hand_url = parse_url(link['href'], 'q')
+                        logging.info(f"youtube找到博客链接: {hand_url}")
+                        result.append(hand_url)
+                        time.sleep(10)
+            else:
+                logging.warning("未找到更多按钮！！！")
     except Exception as e:
         logging.error(e)
     finally:
@@ -161,6 +164,7 @@ def download_from_blog(url):
         return []
     page = BeautifulSoup(response.text, 'html.parser')
     headline2_tags = page.find_all("ul", class_='headline2')
+    logging.info("=============开始下载=============")
     for ul in headline2_tags:
         link_tags = ul.find_all("a")
         for index, item in enumerate(link_tags):
@@ -197,6 +201,7 @@ def download_from_blog(url):
                             logging.error(f"未找到fileId link:{link}")
                     else:
                         logging.warning(f"{link} 中 未匹配到文件id")
+    logging.info("=============下载完成=============")
 
 
 def from_blog(is_pull_latest_blog):
@@ -215,7 +220,7 @@ def from_blog(is_pull_latest_blog):
 def from_youtube():
     res_videos = get_latest_videos_from_ytb()
     urls = get_latest_blog_page_from_ytb(res_videos)
-    if is_pull_latest_blog and len(urls) > 0:
+    if def_is_pull_latest_blog and len(urls) > 0:
         download_from_blog(urls[0])
     else:
         # 注意多次调用会有验证码需手动点
