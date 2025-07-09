@@ -34,7 +34,7 @@ logging.basicConfig(filemode='w',
                     encoding='utf-8'
                     )
 logger = logging.getLogger(__name__)
-pattern = r'"description"\s*:\s*{\s*"simpleText"\s*:\s*"[^"]*本期免费节点获取地址：\s*(https?://[^\s"]+?\.html)'
+pattern = r'redir_token=.*?(https?://[^\s"]+?\.html)'
 
 
 def time_wrapper(func):
@@ -61,7 +61,8 @@ def get_latest_blog_url_from_ytb(urls):
                 # print("text", text)
                 matches = rex.search(pattern, text, rex.DOTALL)
                 if matches:
-                    result.append(matches.group(1))
+                    logger.info(f'找到url:{matches.group(1)}')
+                    result.append(urllib.parse.unquote(matches.group(1)))
             else:
                 logger.warning("页面无返回！！！")
     except Exception as e:
