@@ -34,7 +34,7 @@ logging.basicConfig(filemode='w',
                     encoding='utf-8'
                     )
 logger = logging.getLogger(__name__)
-pattern = rex.compile(r'\\u0026q=(https%3A%2F%2Fskill-note\.blogspot\.com%2F\d{4}%2F\d{2}%2F[\w-]+?\.html\b)')
+pattern = r'\\u0026q=(https%3A%2F%2Fskill-note\.blogspot\.com%2F\d{4}%2F\d{2}%2F[\w-]+?\.html\b)'
 
 
 def time_wrapper(func):
@@ -59,7 +59,7 @@ def get_latest_blog_url_from_ytb(urls):
             if res and res.status_code == 200:
                 text = res.text
                 # print("text", text)
-                matches = pattern.findall(text, rex.DOTALL)
+                matches = rex.search(pattern, text, rex.DOTALL)
                 if matches:
                     logger.info(f'找到url:{matches.group(1)}')
                     result.append(urllib.parse.unquote(matches.group(1)))
