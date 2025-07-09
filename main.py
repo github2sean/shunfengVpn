@@ -1,19 +1,14 @@
 # 引入需要的依赖库
-import requests as re
+import time
+
+import requests as req
 from bs4 import BeautifulSoup
 import gdown
-import time
 import datetime
-import re as re2
+import re as rex
 import logging
 import urllib.parse
 from jsonsearch import JsonSearch
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 import os
 from urllib.parse import quote
 
@@ -41,52 +36,45 @@ logging.basicConfig(filemode='w',
                     encoding='utf-8'
                     )
 
-# 配置 ChromeOptions
-chrome_options = webdriver.ChromeOptions()
-chrome_options.headless = True
-chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-chrome_options.add_experimental_option('useAutomationExtension', False)
+pattern = r'本期免费节点获取地址：(https?://.*?\.html)'
 
 
-def get_latest_blog_page_from_ytb(urls):
+def time_wrapper(func):
+    def wrapper(*args, **kwargs):
+        start_time = time.perf_counter()
+        result = func(*args, **kwargs)
+        end_time = time.perf_counter()
+        logging.info(f"{func.__name__} 总耗时：{end_time - start_time}")
+        return result
+
+    return wrapper
+
+
+@time_wrapper
+def get_latest_blog_url_from_ytb(urls):
     result = []
-    browser = webdriver.Chrome(options=chrome_options, service=Service(ChromeDriverManager().install()))
     try:
-        for url in urls:
-            logging.info(f'开始从{url} 中查找blog链接...')
-            youtube_video_list_url = url
-            browser.get(youtube_video_list_url)
-            # 等待并检测是否存在 CAPTCHA 元素（例如，reCAPTCHA 框架）
-            wait = WebDriverWait(browser, 10)
-            captcha_element = wait.until(EC.presence_of_element_located((By.ID, 'captcha-form')))
-            if captcha_element: logging.warning("CAPTCHA 元素已检测到。")
-            element = wait.until(EC.presence_of_element_located((By.TAG_NAME, 'ytd-text-inline-expander')))
-            more = browser.find_element(By.ID, 'expand')
-            if more:
-                more.click()
-                des_content = element.find_element(By.TAG_NAME, "yt-attributed-string").get_attribute('outerHTML')
-                beautiful_soup = BeautifulSoup(des_content, 'html.parser')
-                if beautiful_soup:
-                    link = beautiful_soup.find_all("a")[-1]
-                    if link:
-                        hand_url = parse_url(link['href'], 'q')
-                        logging.info(f"youtube找到博客链接: {hand_url}")
-                        result.append(hand_url)
-                        time.sleep(10)
+        if urls and len(urls) > 0:
+            logging.info(f'开始从{urls[0]} 中查找blog链接...')
+            youtube_video_list_url = urls[0]
+            res = req.get(youtube_video_list_url)
+            if res and res.status_code == 200:
+                text = res.text
+                matches = rex.search(pattern, text)
+                if matches:
+                    result.append(matches.group(1))
             else:
-                logging.warning("未找到更多按钮！！！")
+                logging.warning("页面无返回！！！")
     except Exception as e:
         logging.error(e)
     finally:
-        browser.close()
-    return result
+        return result
 
 
 def get_latest_videos_from_ytb():
     result = []
     youtube_video_list_url = 'https://www.youtube.com/@SFZY666/videos'
-    res = re.get(youtube_video_list_url)
+    res = req.get(youtube_video_list_url)
     if res.status_code != 200:
         logging.error(f"无法访问 {youtube_video_list_url} 页面，状态码：{res.status_code}")
         return result
@@ -96,7 +84,7 @@ def get_latest_videos_from_ytb():
 
         pattern = r'var\s+ytInitialData\s*=\s*({.*?});'
         if script.string:
-            match = re2.search(pattern, script.string, re2.DOTALL)
+            match = rex.search(pattern, script.string, rex.DOTALL)
             if match:
                 logging.info(f'找到最新视频标签')
                 value = match.group(1)
@@ -134,7 +122,7 @@ def get_blog_pages(url):
     # 设置访问头
     logging.info(f"正在抓取 {url} 页面...")
 
-    response = re.get(url, headers=header)
+    response = req.get(url, headers=header)
     if response.status_code != 200:
         logging.error(f"无法访问 {url} 页面，状态码：{response.status_code}")
         return []
@@ -155,10 +143,11 @@ def get_blog_pages(url):
     return results
 
 
+@time_wrapper
 def download_from_blog(url):
     logging.info(f"开始查找 {url} 中vpn文件...")
     header['referer'] = target_url
-    response = re.get(url, headers=header)
+    response = req.get(url, headers=header)
     if response.status_code != 200:
         logging.error(f"无法访问 {url} 页面，状态码：{response.status_code}")
         return []
@@ -169,7 +158,7 @@ def download_from_blog(url):
         link_tags = ul.find_all("a")
         for index, item in enumerate(link_tags):
             link = item["href"]
-            title = re2.sub(r'[<>:"/\\|?*]', '_', item.text)
+            title = rex.sub(r'[<>:"/\\|?*]', '_', item.text)
             output = quote(url.strip(), safe='=&') + '_A_' + title + "_A_"
             # 替换非法字符
             if link != "" and link.startswith("http"):
@@ -177,11 +166,11 @@ def download_from_blog(url):
                     file_name = output + parse_url(link, 'id') + ".txt"
                     logging.info(f"直链下载的地址：{link}")
                     with open(file_name, "wb") as file:
-                        for chunk in re.get(link, stream=True).iter_content(chunk_size=8192):
+                        for chunk in req.get(link, stream=True).iter_content(chunk_size=8192):
                             if chunk:  # 过滤掉保持活动的新行
                                 file.write(chunk)
                 elif "drive.google.com" in link:
-                    match = re2.search(r'/d/([^/]+)/view', link)
+                    match = rex.search(r'/d/([^/]+)/view', link)
                     if match:
                         file_id = match.group(1)
                         if file_id:
@@ -217,15 +206,14 @@ def from_blog(is_pull_latest_blog):
     logging.info("脚本执行完毕！！！")
 
 
+@time_wrapper
 def from_youtube():
     res_videos = get_latest_videos_from_ytb()
-    urls = get_latest_blog_page_from_ytb(res_videos)
+    urls = get_latest_blog_url_from_ytb(res_videos)
     if def_is_pull_latest_blog and len(urls) > 0:
         download_from_blog(urls[0])
     else:
-        # 注意多次调用会有验证码需手动点
-        for url in urls:
-            download_from_blog(url)
+        logging.warning("未找到blog地址！")
 
 
 # @Todo
@@ -234,7 +222,7 @@ def upload_to_alist():
     headers = {'Authorization': 'your_token_here', 'Content-Type': 'multipart/form-data',
                'Content-Length': 'size_of_your_file'}
     files = {'file': ('file.jpg', open('C:\\path\\to\\your\\file.jpg', 'rb'))}
-    response = re.put(url, headers=headers, files=files)
+    response = req.put(url, headers=headers, files=files)
     print(response.text)
 
 
@@ -281,6 +269,6 @@ def generate_data_from_file(file_name):
 
 
 if __name__ == "__main__":
-    # from_youtube()
+    from_youtube()
     # from_blog(def_is_pull_latest_blog & False)
-    file_to_database()
+    # file_to_database()

@@ -4,7 +4,7 @@ import Models
 db = MySQLDatabase(
     database='shunfengvpn',  # 数据库名称
     user='root',  # 数据库用户名
-    password='Root!123',  # 数据库密码
+    password='Root@123',  # 数据库密码
     host='localhost',  # 数据库主机地址
     port=3306,  # 数据库端口，默认为 3306
     autorollback=True
