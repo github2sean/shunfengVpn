@@ -1,6 +1,5 @@
 # 引入需要的依赖库
 import time
-
 import requests as req
 from bs4 import BeautifulSoup
 import gdown
@@ -11,7 +10,6 @@ import urllib.parse
 from jsonsearch import JsonSearch
 import os
 from urllib.parse import quote
-
 from Models import Vless
 
 def_is_pull_latest_blog = True
@@ -35,8 +33,8 @@ logging.basicConfig(filemode='w',
                     datefmt='%Y-%m-%d %H:%M:%S',
                     encoding='utf-8'
                     )
-
-pattern = r'本期免费节点获取地址：(https?://.*?\.html)'
+logger = logging.getLogger(__name__)
+pattern = r'"description"\s*:\s*{\s*"simpleText"\s*:\s*"[^"]*本期免费节点获取地址：\s*(https?://[^\s"]+?\.html)'
 
 
 def time_wrapper(func):
@@ -44,7 +42,7 @@ def time_wrapper(func):
         start_time = time.perf_counter()
         result = func(*args, **kwargs)
         end_time = time.perf_counter()
-        logging.info(f"{func.__name__} 总耗时：{end_time - start_time}")
+        logger.info(f"{func.__name__} 总耗时：{end_time - start_time}")
         return result
 
     return wrapper
@@ -55,18 +53,19 @@ def get_latest_blog_url_from_ytb(urls):
     result = []
     try:
         if urls and len(urls) > 0:
-            logging.info(f'开始从{urls[0]} 中查找blog链接...')
+            logger.info(f'开始从{urls[0]} 中查找blog链接...')
             youtube_video_list_url = urls[0]
             res = req.get(youtube_video_list_url)
             if res and res.status_code == 200:
                 text = res.text
-                matches = rex.search(pattern, text)
+                # print("text", text)
+                matches = rex.search(pattern, text, rex.DOTALL)
                 if matches:
                     result.append(matches.group(1))
             else:
-                logging.warning("页面无返回！！！")
+                logger.warning("页面无返回！！！")
     except Exception as e:
-        logging.error(e)
+        logger.error(e)
     finally:
         return result
 
@@ -76,7 +75,7 @@ def get_latest_videos_from_ytb():
     youtube_video_list_url = 'https://www.youtube.com/@SFZY666/videos'
     res = req.get(youtube_video_list_url)
     if res.status_code != 200:
-        logging.error(f"无法访问 {youtube_video_list_url} 页面，状态码：{res.status_code}")
+        logger.error(f"无法访问 {youtube_video_list_url} 页面，状态码：{res.status_code}")
         return result
     bs_content = BeautifulSoup(res.text, 'html.parser')
     scripts = bs_content.find_all("script")
@@ -86,14 +85,14 @@ def get_latest_videos_from_ytb():
         if script.string:
             match = rex.search(pattern, script.string, rex.DOTALL)
             if match:
-                logging.info(f'找到最新视频标签')
+                logger.info(f'找到最新视频标签')
                 value = match.group(1)
                 try:
                     json_search = JsonSearch(object=value, mode='s')
                     result = unique_preserve_order(json_search.search_all_value(key="videoId"))
-                    logging.info(f"json: {result}")
+                    logger.info(f"json: {result}")
                 except Exception as e:
-                    logging.error(e)
+                    logger.error(e)
     return result
 
 
@@ -120,11 +119,11 @@ def unique_preserve_order(arr):
 
 def get_blog_pages(url):
     # 设置访问头
-    logging.info(f"正在抓取 {url} 页面...")
+    logger.info(f"正在抓取 {url} 页面...")
 
     response = req.get(url, headers=header)
     if response.status_code != 200:
-        logging.error(f"无法访问 {url} 页面，状态码：{response.status_code}")
+        logger.error(f"无法访问 {url} 页面，状态码：{response.status_code}")
         return []
 
     # 使用 BeautifulSoup 解析 HTML 内容
@@ -139,32 +138,34 @@ def get_blog_pages(url):
             for link in links:
                 title = str.strip(link.text).replace('\n', '')
                 results.append(str.strip(link['href']))
-                logging.info(f'BlogUrl: {link["href"]} \n Blog标题: {title}, \n')
+                logger.info(f'BlogUrl: {link["href"]} \n Blog标题: {title}, \n')
     return results
 
 
 @time_wrapper
 def download_from_blog(url):
-    logging.info(f"开始查找 {url} 中vpn文件...")
+    logger.info(f"开始查找 {url} 中vpn文件...")
     header['referer'] = target_url
     response = req.get(url, headers=header)
     if response.status_code != 200:
-        logging.error(f"无法访问 {url} 页面，状态码：{response.status_code}")
+        logger.error(f"无法访问 {url} 页面，状态码：{response.status_code}")
         return []
     page = BeautifulSoup(response.text, 'html.parser')
     headline2_tags = page.find_all("ul", class_='headline2')
-    logging.info("=============开始下载=============")
+    logger.info("=============开始下载=============")
     for ul in headline2_tags:
         link_tags = ul.find_all("a")
         for index, item in enumerate(link_tags):
             link = item["href"]
+            current_time = datetime.datetime.now().strftime("%Y-%m-%d %H-%M-%S")
             title = rex.sub(r'[<>:"/\\|?*]', '_', item.text)
-            output = quote(url.strip(), safe='=&') + '_A_' + title + "_A_"
+            output = 'assets' + os.sep + quote(url.strip(), safe='=&') + '_A_' + title + "_A_"
+            os.makedirs(os.path.dirname(output), exist_ok=True)
             # 替换非法字符
             if link != "" and link.startswith("http"):
                 if "点击自动下载" in title:
-                    file_name = output + parse_url(link, 'id') + ".txt"
-                    logging.info(f"直链下载的地址：{link}")
+                    file_name = output + parse_url(link, 'id') + "_A_" + current_time + ".txt"
+                    logger.info(f"直链下载的地址：{link}")
                     with open(file_name, "wb") as file:
                         for chunk in req.get(link, stream=True).iter_content(chunk_size=8192):
                             if chunk:  # 过滤掉保持活动的新行
@@ -175,22 +176,22 @@ def download_from_blog(url):
                         file_id = match.group(1)
                         if file_id:
                             output += file_id
-                            logging.info(f"匹配到文件ID: {file_id}")
+                            logger.info(f"匹配到文件ID: {file_id}")
                             download_url = f'https://drive.google.com/uc?id={file_id}'
-                            output += '.yaml' if "Clash-" in title else '.txt'
+                            output += "_A_" + current_time + ('.yaml' if "Clash-" in title else '.txt')
                             # 下载文件
                             try:
-                                logging.info(f"Downloading: {download_url} ....  {output}")
+                                logger.info(f"Downloading: {download_url} ....  {output}")
                                 gdown.download(download_url, output, quiet=False)
-                                logging.info(f"Downloaded: {download_url} ....  {output}")
+                                logger.info(f"Downloaded: {download_url} ....  {output}")
                             except Exception as e:
-                                logging.error(f'当前url: {url} 文件名 {output} \n 报错内容：{e}')
-                            logging.info(f"{url} 中vpn文件下载成功！")
+                                logger.error(f'当前url: {url} 文件名 {output} \n 报错内容：{e}')
+                            logger.info(f"{url} 中vpn文件下载成功！")
                         else:
-                            logging.error(f"未找到fileId link:{link}")
+                            logger.error(f"未找到fileId link:{link}")
                     else:
-                        logging.warning(f"{link} 中 未匹配到文件id")
-    logging.info("=============下载完成=============")
+                        logger.warning(f"{link} 中 未匹配到文件id")
+    logger.info("=============下载完成=============")
 
 
 def from_blog(is_pull_latest_blog):
@@ -202,8 +203,8 @@ def from_blog(is_pull_latest_blog):
         for url in result:
             download_from_blog(url)
     else:
-        logging.warning("未找到blog列表")
-    logging.info("脚本执行完毕！！！")
+        logger.warning("未找到blog列表")
+    logger.info("脚本执行完毕！！！")
 
 
 @time_wrapper
@@ -213,7 +214,7 @@ def from_youtube():
     if def_is_pull_latest_blog and len(urls) > 0:
         download_from_blog(urls[0])
     else:
-        logging.warning("未找到blog地址！")
+        logger.warning("未找到blog地址！")
 
 
 # @Todo

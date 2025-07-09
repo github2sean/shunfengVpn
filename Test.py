@@ -1,4 +1,8 @@
+import datetime
 import os
+import time
+import urllib
+
 
 def get_folder_size(path):
     total_size = 0
@@ -7,6 +11,7 @@ def get_folder_size(path):
             fp = os.path.join(dirpath, f)
             total_size += os.path.getsize(fp)
     return total_size
+
 
 def list_files_and_sizes(path):
     items = []
@@ -33,13 +38,18 @@ def list_files_and_sizes(path):
     print(f"总大小: {total_size / (1024 * 1024):.2f} MB")
 
 
-
-
 # 指定路径
 path = "C://Program Files//WindowsApps"
-list_files_and_sizes(path)
+# list_files_and_sizes(path)
 
-
-
-
-
+if __name__ == '__main__':
+    now = datetime.datetime.now().strftime('%Y-%m-%d %H-%M-%S')
+    # now2 = urllib.parse.unquote(now)
+    # print(now, now2)
+    str = 'https%3A%2F%2Fskill-note.blogspot.com%2F2024%2F10%2F28.html_A_ IOS 苹果小火箭专用(点击自动下载，订阅地址请右键复制链接地址)_A_1Xb3YhNbhf2tuNda6KU8X2ndXmOg1GCak_A_2025-07-09 20-36-19.txt'
+    list2 = str.split('_A_')
+    print(str.replace('.txt', '.yaml', ''))
+    # # 确保目录存在
+    # os.makedirs(os.path.dirname(str), exist_ok=True)
+    # with open(str, 'w') as f:
+    #     f.write(str)

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>vpns</title>
+    <style>
+        /* 加载遮罩层样式 */
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .loading-spinner {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body>
+<h1 style="text-align: center"><a href="/down" class="loading-link">获取最新文件</a></h1>
+
+<ul>
+    {% for f in files %}  <!-- 循环渲染列表 -->
+    <li>文件 {{ loop.index }}:&nbsp;<a href="{{ url_for('static', filename=f) }}">{{ f }}</a><br/></li>
+    {% endfor %}
+</ul>
+
+<!-- 加载遮罩层 -->
+<div id="loading-overlay">
+    <div class="loading-spinner"></div>
+</div>
+<script>
+    document.querySelectorAll('.loading-link').forEach(link => {
+        link.addEventListener('click', function (e) {
+            e.preventDefault(); // 阻止默认跳转
+            const overlay = document.getElementById('loading-overlay');
+
+            // 显示加载动画
+            overlay.style.display = 'flex';
+
+            // 模拟异步请求（实际替换为你的真实请求）
+            fetch(this.href)
+                .then(response => {
+                    if (response.ok) {
+                        // 请求成功后跳转
+                        alert("拉取成功！");
+                        location.href = "/"
+                    }
+                })
+                .catch(error => {
+                    alert("拉取失败！");
+                    console.error('Error:', error);
+                })
+                .finally(() => {
+                    // 隐藏加载动画（通常跳转后会自动消失，这里只是保险）
+                    overlay.style.display = 'none';
+                });
+        });
+    });
+</script>
+</body>
+</html>
