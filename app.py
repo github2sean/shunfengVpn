@@ -33,6 +33,22 @@ def list_latest_files():
     return render_template('index.html', files=latest_file)
 
 
+@app.route("/<int:file_size>", methods=['GET', 'POST'])
+def list_latest_files(file_size):
+    # 获取项目根目录
+    root_dir = current_app.root_path  # 或 os.path.dirname(current_app.instance_path)
+
+    # 获取最新文件路径
+    latest_file = get_latest_file(root_dir + os.sep + 'assets')
+    if file_size and len(latest_file) > file_size:
+        latest_file = latest_file[:file_size]
+    if not latest_file:
+        return "No files found in the directory.", 404
+
+    # 返回文件（自动处理下载）
+    return render_template('index.html', files=latest_file)
+
+
 @app.route("/down", methods=['GET', 'POST'])
 def index():
     try:
