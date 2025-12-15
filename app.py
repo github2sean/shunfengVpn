@@ -1,6 +1,7 @@
+# coding:utf-8
 from datetime import datetime
 
-from flask import Flask, current_app, render_template, redirect
+from flask import Flask, current_app, render_template, redirect, request
 import os
 from main import from_youtube, logger
 
@@ -40,7 +41,7 @@ def list_latest_files(file_size):
 
     # 获取最新文件路径
     latest_file = get_latest_file(root_dir + os.sep + 'assets')
-    if file_size and len(latest_file) > file_size:
+    if file_size and len(latest_file) >= file_size:
         latest_file = latest_file[:file_size]
     if not latest_file:
         return "No files found in the directory.", 404
@@ -51,6 +52,7 @@ def list_latest_files(file_size):
 
 @app.route("/down", methods=['GET', 'POST'])
 def index():
+    request.get_data()
     try:
         from_youtube()
         return redirect('/')
