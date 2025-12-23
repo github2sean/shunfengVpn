@@ -13,13 +13,18 @@ from urllib.parse import urlparse
 
 import cv2
 import numpy as np
+import requests
 from pyzbar.pyzbar import decode, ZBarSymbol
 
 # 脚本说明：读取页面上的二维码保存连接和图片
-
+# 发送请求
+headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+}
 youtuber = 'bulianglin'
+youtube = 'https://www.youtube.com/watch?v='
 stream_id = ''
-url_prefix = f'https://www.youtube.com/@{0}/streams'
+url_prefix = f'https://www.youtube.com/@{youtuber}/streams'
 # 单位s
 execute_interval = 60
 max_retries = 3
@@ -38,6 +43,18 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+
+def generate_whole_url():
+    req = requests.get(url_prefix, headers=headers, timeout=10)
+    logger.info(f'url================{url_prefix}')
+    if req.status_code == 200:
+        res = req.text
+        match = re.search(r'videoId":"([^"]+)', res)
+        if match is not None:
+            logger.info(f'url================{youtube + match.group(1)}')
+            return youtube + match.group(1)
+    return None
 
 
 def check_dependencies():
@@ -69,7 +86,7 @@ def check_dependencies():
 
 
 class YouTubeStreamQRScanner:
-    def __init__(self, url, interval=execute_interval, output_dir=output_dir,
+    def __init__(self, url=generate_whole_url(), interval=execute_interval, output_dir=output_dir,
                  quality="best", max_retries=max_retries):
         """
         初始化YouTube流QR码扫描器
@@ -462,7 +479,7 @@ class YouTubeDirectScanner:
     需要安装pytube
     """
 
-    def __init__(self, url, interval=execute_interval, output_dir=output_dir):
+    def __init__(self, url=generate_whole_url(), interval=execute_interval, output_dir=output_dir):
         self.url = url
         self.interval = interval
         self.output_dir = output_dir
@@ -536,14 +553,14 @@ def install_dependencies():
 
 def main():
     parser = argparse.ArgumentParser(description='YouTube直播QR码自动扫描器（服务器版）')
-    parser.add_argument('url', help='YouTube直播URL')
-    parser.add_argument('-i', '--interval', type=int, default=5,
+    parser.add_argument('url', help='YouTube直播URL', default=generate_whole_url())
+    parser.add_argument('-i', '--interval', type=int, default=execute_interval,
                         help='截图间隔（秒），默认5秒')
-    parser.add_argument('-o', '--output', default='qr_codes',
+    parser.add_argument('-o', '--output', default=output_dir,
                         help='输出目录，默认qr_codes')
-    parser.add_argument('-d', '--duration', type=int,
+    parser.add_argument('-d', '--duration', type=int, default=execute_time,
                         help='运行总时长（秒）')
-    parser.add_argument('-m', '--max-captures', type=int,
+    parser.add_argument('-m', '--max-captures', type=int, default=100,
                         help='最大截图次数')
     parser.add_argument('--install', action='store_true',
                         help='安装必要依赖')
@@ -587,4 +604,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # main()
+
+    generate_whole_url()
