@@ -29,7 +29,7 @@ url_prefix = f'https://www.youtube.com/@{youtuber}/streams'
 execute_interval = 60
 max_retries = 3
 # 单位分钟
-execute_time = 10
+execute_time = 10*60
 list_num = 10
 output_dir = "qr_codes"
 
@@ -86,7 +86,7 @@ def check_dependencies():
 
 
 class YouTubeStreamQRScanner:
-    def __init__(self, url=generate_whole_url(), interval=execute_interval, output_dir=output_dir,
+    def __init__(self, url, interval=execute_interval, output_dir=output_dir,
                  quality="best", max_retries=max_retries):
         """
         初始化YouTube流QR码扫描器
@@ -131,6 +131,7 @@ class YouTubeStreamQRScanner:
             # 使用yt-dlp获取流信息
             cmd = [
                 'yt-dlp',
+                '--cookies', 'bnl_cookies.txt',
                 '-f', f'best[height<=?1080]',  # 选择最佳质量，最高1080p
                 '--get-url',
                 '--no-check-certificate',
@@ -182,7 +183,7 @@ class YouTubeStreamQRScanner:
             ]
 
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-
+            logger.info(f'捕获帧结果{result}')
             if result.returncode == 0:
                 # 检查文件是否有效
                 if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
@@ -272,20 +273,20 @@ class YouTubeStreamQRScanner:
                 logger.error(f"无法读取图像: {image_path}")
                 return []
 
-            # 转换为灰度
+            # 增加对比度和亮度调整
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            gray = cv2.equalizeHist(gray)  # 增强对比度
 
-            # 图像预处理
-            # 1. 自适应阈值
-            gray = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                         cv2.THRESH_BINARY, 11, 2)
+            # 尝试不同的阈值处理
+            _, thresh1 = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+            _, thresh2 = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-            # 2. 可选：形态学操作（去除噪点）
-            kernel = np.ones((3, 3), np.uint8)
-            gray = cv2.morphologyEx(gray, cv2.MORPH_OPEN, kernel)
-
-            # 检测QR码
+            # 多模式检测
             decoded_objects = decode(gray, symbols=[ZBarSymbol.QRCODE])
+            if not decoded_objects:
+                decoded_objects = decode(thresh1, symbols=[ZBarSymbol.QRCODE])
+            if not decoded_objects:
+                decoded_objects = decode(thresh2, symbols=[ZBarSymbol.QRCODE])
 
             results = []
             for obj in decoded_objects:
@@ -318,9 +319,9 @@ class YouTubeStreamQRScanner:
             # 生成安全的文件名
             safe_name = self.sanitize_filename(qr_data)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-
+            current_time = datetime.datetime.now().strftime("%Y-%m-%d %H-%M-%S")
             # 构建文件名
-            filename = f"qr_{safe_name}_{timestamp}.png"
+            filename = f"qr_{safe_name}_A_{current_time}.png"
             if len(filename) > 150:
                 filename = f"qr_{timestamp}.png"
 
@@ -434,8 +435,8 @@ class YouTubeStreamQRScanner:
                             self.save_qr_image(temp_image, qr_data)
 
                         # 删除临时文件以节省空间
-                        if os.path.exists(temp_image):
-                            os.remove(temp_image)
+                        # if os.path.exists(temp_image):
+                        #     os.remove(temp_image)
 
                     else:
                         consecutive_failures += 1
@@ -479,7 +480,7 @@ class YouTubeDirectScanner:
     需要安装pytube
     """
 
-    def __init__(self, url=generate_whole_url(), interval=execute_interval, output_dir=output_dir):
+    def __init__(self, url, interval=execute_interval, output_dir=output_dir):
         self.url = url
         self.interval = interval
         self.output_dir = output_dir
@@ -553,7 +554,7 @@ def install_dependencies():
 
 def main():
     parser = argparse.ArgumentParser(description='YouTube直播QR码自动扫描器（服务器版）')
-    parser.add_argument('url', help='YouTube直播URL', default=generate_whole_url())
+    parser.add_argument('-u', '--url', help='YouTube直播URL', default=generate_whole_url())
     parser.add_argument('-i', '--interval', type=int, default=execute_interval,
                         help='截图间隔（秒），默认5秒')
     parser.add_argument('-o', '--output', default=output_dir,
@@ -604,6 +605,6 @@ def main():
 
 
 if __name__ == "__main__":
-    # main()
+    main()
 
-    generate_whole_url()
+    # generate_whole_url()

@@ -35,14 +35,29 @@
                 transform: rotate(360deg);
             }
         }
+
+        .images .img-li {
+            float: left;
+            margin-left: 80px;
+        }
     </style>
 </head>
 <body>
-<h1 style="text-align: center"><a href="/down" class="loading-link">获取最新文件</a></h1>
-
+<h1 style="text-align: center"><a href="/down" class="loading-link">获取最新文件</a> <a href="/down-images" class="loading-link">获取最新二维码</a></h1>
+<h1 style="text-align: center">文件</h1>
 <ul>
     {% for f in files %}  <!-- 循环渲染列表 -->
     <li>文件 {{ loop.index }}:&nbsp;<a href="{{ url_for('static', filename=f) }}">{{ f }}</a><br/></li>
+    {% endfor %}
+</ul>
+
+<h1 style="text-align: center">二维码</h1>
+
+<ul class="images">
+    {% for f in qrs %}  <!-- 循环渲染列表 -->
+    <li class="img-li">二维码 {{ loop.index }}:&nbsp;{{ f }}<br/>
+        <img width="600px" src="{{ url_for('serve_qrcodes', filename=f) }}">
+    </li>
     {% endfor %}
 </ul>
 
@@ -50,6 +65,7 @@
 <div id="loading-overlay">
     <div class="loading-spinner"></div>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
 <script>
     document.querySelectorAll('.loading-link').forEach(link => {
         link.addEventListener('click', function (e) {
@@ -78,6 +94,7 @@
                 });
         });
     });
+
 </script>
 </body>
 </html>

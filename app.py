@@ -1,8 +1,10 @@
 # coding:utf-8
+import os
 from datetime import datetime
 
-from flask import Flask, current_app, render_template, redirect, request
-import os
+from flask import Flask, current_app, render_template, redirect, request, jsonify
+
+from bulianglin import main
 from main import from_youtube, logger
 
 app = Flask(__name__, template_folder='templates', static_folder='assets')
@@ -20,6 +22,14 @@ def get_latest_file(directory):
     return latest_files
 
 
+# 注册 qrcodes 为静态目录，URL 访问前缀为 /qrcodes
+@app.route('/qr_codes/<path:filename>')
+def serve_qrcodes(filename):
+    # send_from_directory 安全地提供指定目录的文件
+    from flask import send_from_directory
+    return send_from_directory('qr_codes', filename)
+
+
 @app.route("/", methods=['GET', 'POST'])
 def list_latest_files():
     # 获取项目根目录
@@ -27,11 +37,12 @@ def list_latest_files():
 
     # 获取最新文件路径
     latest_file = get_latest_file(root_dir + os.sep + 'assets')
+    latest_qrs = get_latest_file(root_dir + os.sep + 'qr_codes')
     if not latest_file:
         return "No files found in the directory.", 404
 
     # 返回文件（自动处理下载）
-    return render_template('index.html', files=latest_file)
+    return render_template('index.html', files=latest_file, qrs=latest_qrs)
 
 
 @app.route("/<int:file_size>", methods=['GET', 'POST'])
@@ -50,11 +61,38 @@ def list_latest_files(file_size):
     return render_template('index.html', files=latest_file)
 
 
+@app.route("/qr/<int:file_size>", methods=['GET', 'POST'])
+def list_latest_qrs(file_size):
+    # 获取项目根目录
+    root_dir = current_app.root_path  # 或 os.path.dirname(current_app.instance_path)
+
+    # 获取最新文件路径
+    latest_file = get_latest_file(root_dir + os.sep + 'qr_codes')
+    if file_size and len(latest_file) >= file_size:
+        latest_file = latest_file[:file_size]
+    if not latest_file:
+        return "No files found in the directory.", 404
+
+    # 返回文件（自动处理下载）
+    return jsonify(latest_file)
+
+
 @app.route("/down", methods=['GET', 'POST'])
 def index():
     request.get_data()
     try:
         from_youtube()
+        return redirect('/')
+    except Exception as e:
+        logger.error(e)
+        return str(e), 500
+
+
+@app.route("/down-images", methods=['GET', 'POST'])
+def down_images():
+    request.get_data()
+    try:
+        main()
         return redirect('/')
     except Exception as e:
         logger.error(e)
